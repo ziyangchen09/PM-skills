@@ -1,0 +1,4 @@
+interface:
+  display_name: "PM UI Context Builder"
+  short_description: "沉淀项目历史页面、设计变量、复用组件与设计禁区档案"
+  default_prompt: "使用 $pm-ui-context-builder 从这些历史页面建立项目设计上下文。"

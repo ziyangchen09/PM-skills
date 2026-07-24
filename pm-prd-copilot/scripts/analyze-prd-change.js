@@ -21,6 +21,7 @@ const IGNORED_META = new Set([
   'archived_at', 'content_hash', 'source_revision', 'source_url', 'source_token',
   'source_wiki_token', 'source_space_id', 'source_path',
 ]);
+const REQUIREMENT_ID = /^REQ-\d{8}-[a-z0-9][a-z0-9-]{0,80}$/;
 
 function usage() {
   return [
@@ -149,6 +150,35 @@ function resolveScope(options, oldMeta, newMeta, root) {
   return { productId, projectId };
 }
 
+function parseVersion(value, label) {
+  const match = String(value || '').match(/^V(\d+(?:\.\d+)*)$/i);
+  if (!match) throw new Error(label + ' version must use V<number>[.<number>...]');
+  return match[1].split('.').map(Number);
+}
+
+function compareVersions(left, right) {
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = (left[index] || 0) - (right[index] || 0);
+    if (difference) return difference;
+  }
+  return 0;
+}
+
+function validateVersionLineage(oldMeta, newMeta) {
+  const oldRequirement = oldMeta.requirement_id;
+  const newRequirement = newMeta.requirement_id;
+  if (!REQUIREMENT_ID.test(oldRequirement || '') || !REQUIREMENT_ID.test(newRequirement || '')) {
+    throw new Error('Old/new PRDs must contain valid requirement_id');
+  }
+  if (oldRequirement !== newRequirement) throw new Error('Old/new requirement_id mismatch');
+  const oldVersion = parseVersion(oldMeta.version, 'Old PRD');
+  const newVersion = parseVersion(newMeta.version, 'New PRD');
+  if (compareVersions(newVersion, oldVersion) <= 0) {
+    throw new Error('New PRD version must be strictly greater than old PRD version');
+  }
+}
+
 function buildImpactContext(options) {
   const root = path.resolve(options.root);
   const oldFile = path.resolve(options.oldFile);
@@ -159,6 +189,7 @@ function buildImpactContext(options) {
 
   const oldDoc = readMarkdown(oldFile);
   const newDoc = readMarkdown(newFile);
+  validateVersionLineage(oldDoc.frontmatter, newDoc.frontmatter);
   const scope = resolveScope(options, oldDoc.frontmatter, newDoc.frontmatter, root);
   const sectionDiff = diffSections(oldDoc.body, newDoc.body);
   sectionDiff.changes.forEach((change, index) => {
@@ -283,6 +314,23 @@ function buildImpactContext(options) {
   };
 }
 
+function writeImpactReport(outputFile, markdown, oldFile, newFile) {
+  const output = path.resolve(outputFile);
+  if (output === path.resolve(oldFile) || output === path.resolve(newFile)) {
+    throw new Error('--output cannot overwrite --old or --new');
+  }
+  fs.mkdirSync(path.dirname(output), { recursive: true });
+  try {
+    fs.writeFileSync(output, markdown, { encoding: 'utf8', flag: 'wx' });
+  } catch (error) {
+    if (error.code === 'EEXIST') {
+      throw new Error('--output already exists; use a new timestamped report path');
+    }
+    throw error;
+  }
+  return output;
+}
+
 function runSelfTest() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pm-prd-impact-'));
   const write = (relative, content) => {
@@ -295,8 +343,8 @@ function runSelfTest() {
   write('products/ct/product.md', '---\nproduct_id: "ct"\n---\n# CT');
   write('projects/viewer/project.md', '---\nproject_id: "viewer"\nproduct_id: "ct"\n---\n# 阅片');
   write('projects/other/project.md', '---\nproject_id: "other"\nproduct_id: "other-product"\n---\n# 其他');
-  const oldFile = write('old.md', '---\nproduct_id: "ct"\nproject_id: "viewer"\nversion: "V1"\n---\n# 布局\n## 规则\n最大 2×2。\n## 状态\n保持窗宽窗位。');
-  const newFile = write('new.md', '---\nproduct_id: "ct"\nproject_id: "viewer"\nversion: "V2"\n---\n# 布局\n## 规则\n最大 3×3。\n## 状态\n保持窗宽窗位。\n## 权限\n仅医生可用。');
+  const oldFile = write('old.md', '---\nproduct_id: "ct"\nproject_id: "viewer"\nrequirement_id: "REQ-20260720-layout"\nversion: "V1"\n---\n# 布局\n## 规则\n最大 2×2。\n## 状态\n保持窗宽窗位。');
+  const newFile = write('new.md', '---\nproduct_id: "ct"\nproject_id: "viewer"\nrequirement_id: "REQ-20260720-layout"\nversion: "V2"\n---\n# 布局\n## 规则\n最大 3×3。\n## 状态\n保持窗宽窗位。\n## 权限\n仅医生可用。');
   write('projects/viewer/prds/followup.md', '---\ntitle: "随访布局"\n---\n# 随访布局\n随访窗口使用 2×2 布局。');
   write('projects/viewer/decisions.md', '# 已确认决策\n布局上限为 2×2。');
   write('projects/other/prds/layout.md', '---\ntitle: "外部布局"\n---\n# 外部布局\n最大 3×3。');
@@ -311,6 +359,17 @@ function runSelfTest() {
   assert(result.ranked.every((item) => item.relatedChanges.length > 0));
   assert(!result.markdown.includes('外部布局'));
   assert(result.markdown.includes('不得把候选文档直接标为确定影响'));
+  const output = path.join(root, 'projects/viewer/changes/20260720-120000-layout-impact.md');
+  writeImpactReport(output, result.markdown, oldFile, newFile);
+  assert.throws(
+    () => writeImpactReport(output, result.markdown, oldFile, newFile),
+    /already exists/,
+  );
+  assert.strictEqual(fs.readFileSync(output, 'utf8'), result.markdown);
+  const otherRequirement = write('other-requirement.md', fs.readFileSync(newFile, 'utf8')
+    .replace('REQ-20260720-layout', 'REQ-20260720-other'));
+  assert.throws(() => buildImpactContext({ root, oldFile, newFile: otherRequirement, limit: 5 }), /requirement_id mismatch/);
+  assert.throws(() => buildImpactContext({ root, oldFile: newFile, newFile: oldFile, limit: 5 }), /strictly greater/);
   fs.rmSync(root, { recursive: true, force: true });
   process.stdout.write('Self-test passed\n');
 }
@@ -332,12 +391,7 @@ function main() {
     limit,
   });
   if (args.output) {
-    const output = path.resolve(args.output);
-    if (output === path.resolve(args.old) || output === path.resolve(args.new)) {
-      throw new Error('--output cannot overwrite --old or --new');
-    }
-    fs.mkdirSync(path.dirname(output), { recursive: true });
-    fs.writeFileSync(output, result.markdown, 'utf8');
+    const output = writeImpactReport(args.output, result.markdown, args.old, args.new);
     process.stdout.write(JSON.stringify({
       status: 'ok',
       output,
@@ -359,4 +413,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { buildImpactContext, diffMetadata, diffSections, splitSections };
+module.exports = { buildImpactContext, diffMetadata, diffSections, splitSections, writeImpactReport };

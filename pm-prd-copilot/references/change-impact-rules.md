@@ -5,10 +5,14 @@
 先运行：
 
 ```text
-node scripts/analyze-prd-change.js --root <pm-knowledge> --old <旧版> --new <新版> --output <证据包>
+node scripts/analyze-prd-change.js --root <pm-knowledge> --old <旧版> --new <新版> --output <项目>/changes/YYYYMMDD-HHmmss-<requirement-id>-impact.md
 ```
 
 证据包按 Markdown 章节标记 `新增`、`修改`、`删除`，统计未变章节，并召回可能相关的历史资料。脚本只提供文本证据，不判断业务影响。
+
+旧版和新版必须具有相同且有效的 `requirement_id`；版本号使用 `V<number>[.<number>...]`，新版必须严格高于旧版。跨需求、同版本或倒序比较直接停止，不能生成看似有效的影响报告。
+
+`--output` 只允许创建新文件。目标已存在时停止，不覆盖、不清空旧报告；使用新的时间戳路径重试。历史影响报告全部保留，后续报告通过旧/新版路径建立版本关系，不改写前一份报告。
 
 ## 搜索影响
 
