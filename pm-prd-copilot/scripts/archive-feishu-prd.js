@@ -10,6 +10,7 @@ const path = require('path');
 const API_BASE = 'https://open.feishu.cn/open-apis';
 const SAFE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const REQUEST_TIMEOUT_MS = 15000;
+const MAX_BINARY_RESPONSE_BYTES = 50 * 1024 * 1024;
 const MAX_REQUEST_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 250;
 const EXPORT_POLL_DELAY_MS = 600;
@@ -215,22 +216,64 @@ async function requestJson(endpoint, accessToken, options = {}) {
 
 async function requestBinary(endpoint, accessToken, runtime = {}) {
   const fetchImpl = runtime.fetchImpl || fetch;
-  const response = await fetchImpl(API_BASE + endpoint, {
-    headers: { Authorization: 'Bearer ' + accessToken },
-    signal: runtime.signal,
-  });
-  if (!response.ok) {
-    let detail = '';
-    try {
-      const data = await response.json();
-      detail = data.msg || data.message || '';
-    } catch {}
-    throw new Error((detail || 'Feishu binary download failed') + ' (Code: ' + response.status + ')');
+  const timeoutMs = runtime.timeoutMs ?? REQUEST_TIMEOUT_MS;
+  const maxBytes = runtime.maxBytes ?? MAX_BINARY_RESPONSE_BYTES;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 4) throw new Error('Invalid Feishu binary size limit');
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const abort = () => controller.abort();
+  runtime.signal?.addEventListener('abort', abort, { once: true });
+  try {
+    if (runtime.signal?.aborted) controller.abort();
+    const response = await fetchImpl(API_BASE + endpoint, {
+      headers: { Authorization: 'Bearer ' + accessToken },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      let detail = '';
+      try {
+        const data = await response.json();
+        detail = data.msg || data.message || '';
+      } catch {}
+      throw new Error((detail || 'Feishu binary download failed') + ' (Code: ' + response.status + ')');
+    }
+    const declaredSize = Number(response.headers.get('content-length'));
+    if (Number.isFinite(declaredSize) && declaredSize > maxBytes) {
+      throw new Error('Feishu binary download exceeds ' + maxBytes + ' bytes');
+    }
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('Feishu binary download does not support bounded streaming');
+    }
+    const chunks = [];
+    let size = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) {
+        controller.abort();
+        throw new Error('Feishu binary download exceeds ' + maxBytes + ' bytes');
+      }
+      chunks.push(Buffer.from(value));
+    }
+    return {
+      buffer: Buffer.concat(chunks, size),
+      contentType: response.headers.get('content-type') || '',
+    };
+  } catch (error) {
+    if (timedOut) {
+      throw new Error('Feishu binary download timed out after ' + timeoutMs + 'ms');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    runtime.signal?.removeEventListener('abort', abort);
   }
-  return {
-    buffer: Buffer.from(await response.arrayBuffer()),
-    contentType: response.headers.get('content-type') || '',
-  };
 }
 
 function assertValidDocx(buffer) {
@@ -1229,6 +1272,71 @@ async function runSelfTest() {
     /offline/,
   );
   assert.strictEqual(attempts, 2);
+  const binary = await requestBinary('/download', 'access-token', {
+    maxBytes: 8,
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: (name) => (name === 'content-type' ? 'application/octet-stream' : null) },
+      body: {
+        getReader: () => {
+          let calls = 0;
+          return {
+            read: async () => (calls++ === 0
+              ? { done: false, value: Uint8Array.from([0x50, 0x4b, 0x03, 0x04]) }
+              : { done: true }),
+          };
+        },
+      },
+    }),
+  });
+  assert.deepStrictEqual(binary.buffer, Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+  await assert.rejects(
+    () => requestBinary('/download', 'access-token', {
+      maxBytes: 8,
+      fetchImpl: async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => (name === 'content-length' ? '9' : null) },
+      }),
+    }),
+    /exceeds 8 bytes/,
+  );
+  await assert.rejects(
+    () => requestBinary('/download', 'access-token', {
+      fetchImpl: async () => ({ ok: true, status: 200, headers: { get: () => null } }),
+    }),
+    /bounded streaming/,
+  );
+  await assert.rejects(
+    () => requestBinary('/download', 'access-token', {
+      maxBytes: 8,
+      fetchImpl: async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        body: {
+          getReader: () => ({
+            read: async () => ({ done: false, value: Uint8Array.from(new Array(9).fill(0)) }),
+          }),
+        },
+      }),
+    }),
+    /exceeds 8 bytes/,
+  );
+  await assert.rejects(
+    () => requestBinary('/download', 'access-token', {
+      timeoutMs: 1,
+      fetchImpl: (_url, options) => new Promise((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => {
+          const error = new Error('aborted');
+          error.name = 'AbortError';
+          reject(error);
+        });
+      }),
+    }),
+    /timed out after 1ms/,
+  );
   const fakeDocx = Buffer.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4]);
   const exported = await exportDocument({ documentToken: 'doc-token' }, 'access-token', {
     sleepImpl: async () => {},
