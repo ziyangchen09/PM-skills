@@ -48,6 +48,7 @@ node scripts/validate-design-context.js --file <context.md> --root <pm-knowledge
 - 组件只有在多处真实出现或代码中已有复用实现时才列为“可复用”；仅仅长得相似不算事实。
 - 不复制患者信息、账号、密钥等敏感数据；截图描述只保留设计所需内容。
 - 更新已有档案时保留仍有效的记录，补充新来源并更新 `updated_at`，不要无依据重写历史结论。
+- `design/style-guide.md` 和 `design/pages/` 中的新规则只有在用户确认可追溯时才作为规范来源；生成器建议或探索稿不得登记为既有事实。无历史来源的全新视觉探索交给 `$pm-prototype-studio`，不要为通过校验制造历史样式。
 
 ## 完成标准
 

@@ -23,7 +23,7 @@
 
 旧版也对第一条明确格式的请求输出了合格表格，因此不能据此宣称新版相较旧版提高了准确率。此次验证支持“新规则能指导这些典型任务”，不代表已测量真实节省工时或证明个人风格完全一致。
 
-原始试跑产物保存在工作区 `.tmp/pm-skill-style-eval/`，不会作为业务 PRD 或新的风格样本自动入库。
+原始试跑产物保存在工作区 `archive/2026-10-26/临时文件/.tmp/pm-skill-style-eval/`，不会作为业务 PRD 或新的风格样本自动入库。
 
 ## 实际试写样例：完整工作稿
 
@@ -77,4 +77,4 @@
 - `node ./pm-prd-copilot/scripts/save-prd.js --self-test`：通过。
 - `git diff --check`：通过。
 - 已同步 6 个本次技能文件到 `C:\Users\qifengshunshi\.codex\skills\pm-prd-copilot`，逐文件 SHA-256 与工作区一致；安装目录另外 13 个原有文件哈希未变。
-- 更新前副本及安装目录哈希清单：工作区 `.tmp/pm-skill-style-eval/installed-before/`。仓库原有 `archive-feishu-prd.js` 修改未纳入此次同步；没有回写飞书或修改既有业务 PRD。
+- 更新前副本及安装目录哈希清单：工作区 `archive/2026-10-26/临时文件/.tmp/pm-skill-style-eval/installed-before/`。仓库原有 `archive-feishu-prd.js` 修改未纳入此次同步；没有回写飞书或修改既有业务 PRD。

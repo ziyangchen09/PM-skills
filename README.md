@@ -1,6 +1,6 @@
 # PM Skills
 
-最后更新：2026-09-24
+最后更新：2026-10-27
 
 一套面向产品经理的 Codex Skills：按用户的写作习惯整理口述、撰写 PRD 工作稿和补充版本增量；需要正式交付时，再沿完整分析链生成经过门禁校验的 PRD。支持按产品和项目沉淀资料、证据补证、用户故事、评审闭环、需求变更影响分析、飞书 Wiki 增量同步、历史页面设计上下文沉淀和 Vue 交互原型生成。
 
@@ -35,9 +35,12 @@
 需要继续做页面方案时，接入独立设计分支：
 
 ```text
-已确认 PRD + 历史页面/现有前端
-→ pm-ui-context-builder
+已确认 PRD + 历史页面/设计简报
+→ 有历史来源时先用 pm-ui-context-builder
 → pm-prototype-studio
+  ├─ preserve：沿用样式（默认）
+  ├─ refine：局部视觉升级
+  └─ explore：代表页面比较方向后展开
 → 提示词局部微调并确认原型版本
 ```
 
@@ -52,7 +55,7 @@
 | `pm-prd-readiness-gate` | 对抗式检查并输出 READY、CONDITIONAL 或 NOT_READY | `readiness.md`、`handoff.md` |
 | `pm-prd-copilot` | 按个人风格撰写工作稿与增量，生成/审查/归档正式 PRD | PRD 工作稿、正式 PRD、评审记录、影响报告 |
 | `pm-ui-context-builder` | 从历史页面、截图或现有前端提取可追溯的设计上下文 | `design/context.md` |
-| `pm-prototype-studio` | 基于已确认 PRD 和设计上下文生成、版本化并局部微调 Vue 原型 | `prototypes/<requirement-id>/vNNN/` |
+| `pm-prototype-studio` | 按沿用、局部升级或探索模式生成 Vue 原型，保存设计依据并检查实际渲染 | `prototypes/<requirement-id>/vNNN/` |
 
 关键保障（阶段确认与准入校验适用于正式分析和交付路线；归档与原型仍各按原有规则执行）：
 
@@ -111,6 +114,20 @@
 用 pm-prototype-studio 基于这个已确认 PRD 和 ct-system 的设计上下文生成 Vue 交互原型，只实现主业务流程。
 在上一版原型上只调整结节表单的必填反馈和错误定位，其他区域保持不变，并保存为下一版本。
 ```
+
+### 原型样式设计
+
+按需接入已安装的 `ui-ux-pro-max`（检索设计建议）、`frontend-design`（建立视觉方向）和 `impeccable`（已有页面评审与精修），不要求每轮全部调用。Product Design 的 `ideate` / `image-to-code` 用于需要可见方案比较和按图实现的任务。
+
+```text
+用 pm-prototype-studio 局部升级这个表格的层级、行高和选中态，其余区域保持不变。
+用 pm-prototype-studio 为这个新模块探索视觉方向，先比较代表页面，再展开选定方案。
+用 impeccable polish 精修这个原型，只调整排版和间距，保留配色和业务交互。
+```
+
+新规则先保存在本版 `visual-spec.md`；只有获得项目复用确认后才写入 `design/style-guide.md`，有页面差异时再建 `design/pages/<page-id>.md`。实际截图和操作结果写入 `prototype.md`，不把构建通过当作视觉验收。详见 [原型视觉设计](pm-prototype-studio/references/visual-design.md)。
+
+外部设计技能源码位于 `design-skills/`：Frontend Design 保留官方固定提交，Impeccable 为标明来源和裁剪范围的文档适配版，不包含官方引擎、自动 hooks 或实时模式。现有根安装器继续安装原有 PM 技能，外部设计技能独立维护；本次安装路径和备份见 [升级记录](docs/prototype-style-upgrade-2026-10-27.md)。
 
 归档：
 
@@ -260,3 +277,19 @@ DOCX 下载默认限时 15 秒、最大 50 MiB，流式读取时同步检查大�
 - 每次修改 Skill 行为、脚本、模板、交接协议或安装方式，都必须同步检查并更新本 README。
 - 前置链专属变化同时更新 `PM-skills-pre-PRD-pack-v2/README.md`。
 - 不在各 Skill 目录重复创建 README；根 README 是用户使用说明的唯一入口。
+
+
+## 工作区成果导航
+
+本节为本地归档约定；`outputs`、`archive` 和 `pm-knowledge` 不随 GitHub 仓库发布，以下归档链接仅在保留这些目录的本地工作区可用。
+
+散落成果已于 2026-10-26 统一分类到 `outputs`，从[成果导航](outputs/成果导航.md)查找。
+
+- CT系统：阅片交互、窗宽窗位、结节分析、测试及 AI-PACS 材料。
+- MDT系统：会诊页面、标签与证据溯源、报告素材、调度流程和提示词。
+- AI-MDT综合：演示汇报、演讲稿、市场科研、联合验收、共用图标与竞品调研。
+- 通用资料：PNG看图工具和培训证书生成脚本。
+
+临时构建、调试与旧审阅文件保留在 `archive/2026-10-26/临时文件`；[整理报告](archive/2026-10-26/整理报告.md)包含校验结果和未移动项，[迁移清单](archive/2026-10-26/迁移清单.csv)记录原路径和新路径。
+
+后续交付文件归入对应项目；配套图片、脚本和说明放在同一成果目录。`pm-knowledge` 继续保存现有项目知识与版本原型，Skills 源码和安装路径不变。

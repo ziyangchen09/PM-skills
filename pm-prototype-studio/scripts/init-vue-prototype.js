@@ -14,6 +14,7 @@ const MANIFEST_TEMPLATE = path.join(SKILL_DIR, 'assets', 'prototype-manifest-tem
 const PROJECT_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const REQUIREMENT_ID = /^REQ-\d{8}-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const VERSION_ID = /^v\d{3}$/;
+const DESIGN_MODES = new Set(['preserve', 'refine', 'explore']);
 const EXCLUDED = new Set(['node_modules', 'dist', '.git']);
 
 function usage() {
@@ -21,13 +22,14 @@ function usage() {
     'Usage:',
     '  node init-vue-prototype.js --root <pm-knowledge> --project <project-id>',
     '    --requirement <REQ-YYYYMMDD-feature-slug> [--version vNNN]',
+    '    [--design-mode preserve|refine|explore]',
     '  node init-vue-prototype.js --self-test',
   ].join('\n');
 }
 
 function parseArgs(argv) {
   const args = {};
-  const known = new Set(['root', 'project', 'requirement', 'version', 'self-test']);
+  const known = new Set(['root', 'project', 'requirement', 'version', 'design-mode', 'self-test']);
   for (let index = 0; index < argv.length; index += 1) {
     const item = argv[index];
     if (!item.startsWith('--') || !known.has(item.slice(2))) {
@@ -139,6 +141,8 @@ function renderManifest(values) {
 }
 
 function initializePrototype(options) {
+  const designMode = options['design-mode'] || 'preserve';
+  if (!DESIGN_MODES.has(designMode)) throw new Error('Invalid design mode: ' + designMode);
   const project = validateId(options.project, PROJECT_ID, 'project ID');
   const requirement = validateId(options.requirement, REQUIREMENT_ID, 'requirement ID');
   const root = path.resolve(options.root || '');
@@ -182,6 +186,7 @@ function initializePrototype(options) {
       VERSION: version,
       BASED_ON: previous || 'none',
       CREATED_AT: new Date().toISOString(),
+      DESIGN_MODE: designMode,
     });
     fs.writeFileSync(path.join(stage, 'prototype.md'), manifest, { encoding: 'utf8', flag: 'wx' });
     rejectSymlinks(requirementDirectory);
@@ -210,6 +215,7 @@ function runSelfTest() {
     assert(first.endsWith(path.join('REQ-20260722-nodule-validation', 'v001')));
     assert(fs.existsSync(path.join(first, 'src', 'App.vue')));
     assert(fs.existsSync(path.join(first, 'prototype.md')));
+    assert(fs.readFileSync(path.join(first, 'prototype.md'), 'utf8').includes('design_mode: preserve'));
 
     fs.appendFileSync(path.join(first, 'src', 'App.vue'), '\n<!-- retained -->\n', 'utf8');
     fs.mkdirSync(path.join(first, 'node_modules'), { recursive: true });
@@ -218,11 +224,20 @@ function runSelfTest() {
       root,
       project: 'ct-system',
       requirement: 'REQ-20260722-nodule-validation',
+      'design-mode': 'refine',
     });
     assert(second.endsWith(path.join('REQ-20260722-nodule-validation', 'v002')));
     assert(fs.readFileSync(path.join(second, 'src', 'App.vue'), 'utf8').includes('retained'));
     assert(!fs.existsSync(path.join(second, 'node_modules')));
     assert(fs.readFileSync(path.join(second, 'prototype.md'), 'utf8').includes('based_on: v001'));
+    assert(fs.readFileSync(path.join(second, 'prototype.md'), 'utf8').includes('design_mode: refine'));
+
+    const third = initializePrototype({ root, project: 'ct-system',
+      requirement: 'REQ-20260722-nodule-validation', 'design-mode': 'explore' });
+    assert(fs.readFileSync(path.join(third, 'prototype.md'), 'utf8').includes('design_mode: explore'));
+    assert.throws(() => initializePrototype({ root, project: 'ct-system',
+      requirement: 'REQ-20260722-nodule-validation', 'design-mode': 'unknown' }), /Invalid design mode/);
+    assert(!fs.existsSync(path.join(path.dirname(third), 'v004')));
 
     assert.throws(() => initializePrototype({
       root,
@@ -233,8 +248,8 @@ function runSelfTest() {
       root,
       project: 'ct-system',
       requirement: 'REQ-20260722-nodule-validation',
-      version: 'v004',
-    }), /Next version must be v003/);
+      version: 'v005',
+    }), /Next version must be v004/);
 
     const unsafeProject = path.join(root, 'projects', 'unsafe-system');
     const outside = path.join(temporary, 'outside-prototypes');

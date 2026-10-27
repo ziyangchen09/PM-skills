@@ -6,6 +6,7 @@ status: draft
 based_on: {{BASED_ON}}
 created_at: {{CREATED_AT}}
 framework: vue-3-vite
+design_mode: {{DESIGN_MODE}}
 ---
 
 # Vue 交互原型
@@ -15,6 +16,14 @@ framework: vue-3-vite
 - PRD / handoff：待填写
 - 设计上下文：`../../../design/context.md`
 - 参考页面：待填写
+
+## 视觉设计
+
+- 设计模式：{{DESIGN_MODE}}（preserve 沿用 / refine 局部升级 / explore 全新探索）
+- 已确认规范：填写实际路径；无则说明，不把 starter 当规范
+- 本版探索或差异：需要时记录在 `visual-spec.md`
+- 使用的设计技能及作用：按实际填写；不要求全部调用
+- 方向选择依据：沿用 / 用户提供 / 用户选定 / 尚待选择
 
 ## 本版本范围
 
@@ -41,3 +50,9 @@ framework: vue-3-vite
 
 - [ ] 已与 PRD 和设计上下文核对
 - [ ] `npm.cmd run build` 通过
+- [ ] 实际浏览器走完主流程和本版涉及的关键状态
+- [ ] 在目标窗口尺寸检查布局、文字、颜色语义、焦点与溢出
+
+| 检查场景/状态 | 窗口尺寸 | 截图路径/操作结果 | 结果与未验证项 |
+| --- | --- | --- | --- |
+| 按实际检查填写 |  |  | 未验证 |
