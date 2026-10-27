@@ -1,0 +1,12 @@
+.codex-work/
+.tmp_doc_review/
+pm-knowledge/
+output/
+outputs/
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.env
+.env.*
+/archive/
